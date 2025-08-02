@@ -11,32 +11,25 @@ from telegram.ext import (
 )
 import matplotlib.pyplot as plt
 
-# Получаем токен и настройки из переменных окружения
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 PORT = int(os.environ.get("PORT", 8443))
-
-# Файл для хранения баллов
 SCORES_FILE = "scores.json"
 
-# Загрузка данных
 def load_scores():
     if os.path.exists(SCORES_FILE):
         with open(SCORES_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     return {}
 
-# Сохранение данных
 def save_scores(scores):
     with open(SCORES_FILE, "w", encoding="utf-8") as f:
         json.dump(scores, f, ensure_ascii=False, indent=2)
 
-# Проверка времени — 13:37
 def is_1337():
     now = datetime.now()
     return now.hour == 13 and now.minute == 37
 
-# Обработка обычного сообщения
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     chat_id = str(update.effective_chat.id)
@@ -44,7 +37,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     username = user.full_name
 
     if not is_1337():
-        return  # Не 13:37 — игнорируем
+        return
 
     scores = load_scores()
     if chat_id not in scores:
@@ -52,7 +45,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     today = datetime.now().strftime("%Y-%m-%d")
     if today in scores[chat_id].get(user_id, {}):
-        return  # Уже получал балл сегодня
+        return
 
     scores[chat_id].setdefault(user_id, {})[today] = username
     save_scores(scores)
@@ -60,7 +53,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     count = len(scores[chat_id][user_id])
     await update.message.reply_text(f"🎯 {username}, ты получил 1 балл! Всего баллов: {count}")
 
-# Команда /rating
 async def show_scores(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = str(update.effective_chat.id)
     scores = load_scores()
@@ -78,7 +70,6 @@ async def show_scores(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lines = [f"{i+1}. {name} — {pts} баллов" for i, (name, pts) in enumerate(sorted_scores)]
     await update.message.reply_text("\n".join(lines))
 
-# Команда /chart
 async def show_graph(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = str(update.effective_chat.id)
     scores = load_scores()
@@ -107,7 +98,6 @@ async def show_graph(update: Update, context: ContextTypes.DEFAULT_TYPE):
     with open(chart_path, "rb") as img:
         await update.message.reply_photo(photo=img)
 
-# Запуск бота через webhook
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
@@ -117,11 +107,11 @@ def main():
 
     print(f"✅ Бот запускается по webhook: {WEBHOOK_URL}")
 
-    await app.run_webhook(
+    app.run_webhook(
         listen="0.0.0.0",
         port=PORT,
         webhook_url=WEBHOOK_URL,
     )
 
 if __name__ == "__main__":
-    import asyncio
+    main()
