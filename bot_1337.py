@@ -6,7 +6,7 @@ import json
 import matplotlib.pyplot as plt
 
 # ВСТАВЬ СЮДА СВОЙ ТОКЕН
-TOKEN = 8064087816:AAFiKQUtVU1XsCSYMgupYc3ZtGfvz_4oU9c
+TOKEN = '8064087816:AAFiKQUtVU1XsCSYMgupYc3ZtGfvz_4oU9c'
 DATA_FILE = "scores.json"
 
 def load_scores():
