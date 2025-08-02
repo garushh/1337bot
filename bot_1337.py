@@ -1,8 +1,6 @@
 import os
 import json
 from datetime import datetime
-from collections import defaultdict
-
 from telegram import Update
 from telegram.ext import (
     ApplicationBuilder,
@@ -13,7 +11,7 @@ from telegram.ext import (
 )
 import matplotlib.pyplot as plt
 
-# Получаем токены и переменные окружения
+# Получаем токен и настройки из переменных окружения
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 PORT = int(os.environ.get("PORT", 8443))
@@ -33,12 +31,12 @@ def save_scores(scores):
     with open(SCORES_FILE, "w", encoding="utf-8") as f:
         json.dump(scores, f, ensure_ascii=False, indent=2)
 
-# Проверка времени
+# Проверка времени — 13:37
 def is_1337():
     now = datetime.now()
     return now.hour == 13 and now.minute == 37
 
-# Обработка сообщений
+# Обработка обычного сообщения
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     chat_id = str(update.effective_chat.id)
@@ -49,7 +47,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return  # Не 13:37 — игнорируем
 
     scores = load_scores()
-
     if chat_id not in scores:
         scores[chat_id] = {}
 
@@ -110,7 +107,7 @@ async def show_graph(update: Update, context: ContextTypes.DEFAULT_TYPE):
     with open(chart_path, "rb") as img:
         await update.message.reply_photo(photo=img)
 
-# Запуск бота с Webhook
+# Запуск бота через webhook
 async def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
@@ -118,15 +115,13 @@ async def main():
     app.add_handler(CommandHandler("chart", show_graph))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
 
-    await app.start()
-    await app.updater.start_webhook(
+    print(f"✅ Бот запускается по webhook: {WEBHOOK_URL}")
+
+    await app.run_webhook(
         listen="0.0.0.0",
         port=PORT,
-        url_path="",
         webhook_url=WEBHOOK_URL,
     )
-    print(f"✅ Бот запущен на Webhook: {WEBHOOK_URL}")
-    await app.updater.idle()
 
 if __name__ == "__main__":
     import asyncio
