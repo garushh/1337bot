@@ -64,6 +64,6 @@ async def show_graph(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 app = ApplicationBuilder().token(TOKEN).build()
 app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
-app.add_handler(CommandHandler("рейтинг", show_scores))
-app.add_handler(CommandHandler("график", show_graph))
+app.add_handler(CommandHandler("rating", show_scores))
+app.add_handler(CommandHandler("chart", show_graph))
 app.run_polling()
