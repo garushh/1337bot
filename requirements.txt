@@ -1,2 +1,2 @@
-python-telegram-bot==20.3
-matplotlib
+python-telegram-bot[webhooks]==20.8
+matplotlib 
