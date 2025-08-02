@@ -1,69 +1,124 @@
+import os
+import json
+from datetime import datetime
+from collections import defaultdict
 
 from telegram import Update
-from telegram.ext import ApplicationBuilder, MessageHandler, filters, CommandHandler, ContextTypes
-from datetime import datetime
-import json
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    ContextTypes,
+    filters,
+)
 import matplotlib.pyplot as plt
 
-# ВСТАВЬ СЮДА СВОЙ ТОКЕН
-TOKEN = "8064087816:AAFiKQUtVU1XsCSYMgupYc3ZtGfvz_4oU9c"
-DATA_FILE = "scores.json"
+# Получаем токен из переменной окружения
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
+# Файл для хранения баллов
+SCORES_FILE = "scores.json"
+
+# Загрузка данных
 def load_scores():
-    try:
-        with open(DATA_FILE, "r") as f:
+    if os.path.exists(SCORES_FILE):
+        with open(SCORES_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
-    except FileNotFoundError:
-        return {}
+    return {}
 
+# Сохранение данных
 def save_scores(scores):
-    with open(DATA_FILE, "w") as f:
-        json.dump(scores, f)
+    with open(SCORES_FILE, "w", encoding="utf-8") as f:
+        json.dump(scores, f, ensure_ascii=False, indent=2)
 
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# Проверка времени
+def is_1337():
     now = datetime.now()
-    if now.hour == 13 and now.minute == 37:
-        user = update.message.from_user
-        scores = load_scores()
-        user_id = str(user.id)
-        user_name = user.first_name
-        if user_id not in scores:
-            scores[user_id] = {"name": user_name, "points": 0, "dates": []}
-        today = now.strftime("%Y-%m-%d")
-        if today not in scores[user_id]["dates"]:
-            scores[user_id]["points"] += 1
-            scores[user_id]["dates"].append(today)
-            save_scores(scores)
-            await update.message.reply_text(f"🎯 {user_name}, ты получил 1 балл за 13:37!")
+    return now.hour == 13 and now.minute == 37
 
+# Обработка сообщений
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    chat_id = str(update.effective_chat.id)
+    user_id = str(user.id)
+    username = user.full_name
+
+    if not is_1337():
+        return  # Не 13:37 — игнорируем
+
+    scores = load_scores()
+
+    if chat_id not in scores:
+        scores[chat_id] = {}
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    if today in scores[chat_id].get(user_id, {}):
+        return  # Уже получал балл сегодня
+
+    scores[chat_id].setdefault(user_id, {})[today] = username
+    save_scores(scores)
+
+    count = len(scores[chat_id][user_id])
+    await update.message.reply_text(f"🎯 {username}, ты получил 1 балл! Всего баллов: {count}")
+
+# Команда /rating
 async def show_scores(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = str(update.effective_chat.id)
     scores = load_scores()
-    sorted_users = sorted(scores.items(), key=lambda x: x[1]["points"], reverse=True)
-    message = "🏆 Рейтинг 13:37:\n"
-    for i, (uid, user) in enumerate(sorted_users, 1):
-        message += f"{i}. {user['name']}: {user['points']} баллов\n"
-    await update.message.reply_text(message)
 
-async def show_graph(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    scores = load_scores()
-    if not scores:
-        await update.message.reply_text("Пока нет данных для графика.")
+    if chat_id not in scores or not scores[chat_id]:
+        await update.message.reply_text("Пока нет баллов 💤")
         return
-    names = [data["name"] for data in scores.values()]
-    points = [data["points"] for data in scores.values()]
-    plt.figure(figsize=(8, 4))
-    plt.bar(names, points, color="skyblue")
-    plt.title("Баллы за 13:37")
-    plt.ylabel("Баллы")
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    graph_path = "graph.png"
-    plt.savefig(graph_path)
-    plt.close()
-    await update.message.reply_photo(photo=open(graph_path, "rb"))
 
-app = ApplicationBuilder().token(TOKEN).build()
-app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
-app.add_handler(CommandHandler("rating", show_scores))
-app.add_handler(CommandHandler("chart", show_graph))
-app.run_polling()
+    user_scores = {
+        data.get(date, "❓"): len(days)
+        for uid, days in scores[chat_id].items()
+        for date, data in [(uid, days)]
+    }
+
+    sorted_scores = sorted(user_scores.items(), key=lambda x: x[1], reverse=True)
+    lines = [f"{i+1}. {name} — {pts} баллов" for i, (name, pts) in enumerate(sorted_scores)]
+    await update.message.reply_text("\n".join(lines))
+
+# Команда /chart
+async def show_graph(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = str(update.effective_chat.id)
+    scores = load_scores()
+
+    if chat_id not in scores or not scores[chat_id]:
+        await update.message.reply_text("Пока нечего показать 📉")
+        return
+
+    names = []
+    points = []
+    for uid, entries in scores[chat_id].items():
+        name = list(entries.values())[0]
+        names.append(name)
+        points.append(len(entries))
+
+    fig, ax = plt.subplots()
+    ax.barh(names, points)
+    ax.set_xlabel("Баллы")
+    ax.set_title("🏆 Рейтинг 13:37")
+
+    plt.tight_layout()
+    chart_path = "/tmp/chart.png"
+    plt.savefig(chart_path)
+    plt.close()
+
+    with open(chart_path, "rb") as img:
+        await update.message.reply_photo(photo=img)
+
+# Запуск бота
+def main():
+    app = ApplicationBuilder().token(TOKEN).build()
+
+    app.add_handler(CommandHandler("rating", show_scores))
+    app.add_handler(CommandHandler("chart", show_graph))
+    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
+
+    print("✅ Bot is running...")
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
