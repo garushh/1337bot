@@ -108,7 +108,7 @@ async def show_graph(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_photo(photo=img)
 
 # Запуск бота через webhook
-async def main():
+def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("rating", show_scores))
@@ -125,4 +125,3 @@ async def main():
 
 if __name__ == "__main__":
     import asyncio
-    asyncio.run(main())
