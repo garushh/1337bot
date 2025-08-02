@@ -13,8 +13,10 @@ from telegram.ext import (
 )
 import matplotlib.pyplot as plt
 
-# Получаем токен из переменной окружения
+# Получаем токены и переменные окружения
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+PORT = int(os.environ.get("PORT", 8443))
 
 # Файл для хранения баллов
 SCORES_FILE = "scores.json"
@@ -71,9 +73,8 @@ async def show_scores(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     user_scores = {
-        data.get(date, "❓"): len(days)
-        for uid, days in scores[chat_id].items()
-        for date, data in [(uid, days)]
+        list(data.values())[0]: len(data)
+        for data in scores[chat_id].values()
     }
 
     sorted_scores = sorted(user_scores.items(), key=lambda x: x[1], reverse=True)
@@ -109,16 +110,24 @@ async def show_graph(update: Update, context: ContextTypes.DEFAULT_TYPE):
     with open(chart_path, "rb") as img:
         await update.message.reply_photo(photo=img)
 
-# Запуск бота
-def main():
+# Запуск бота с Webhook
+async def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("rating", show_scores))
     app.add_handler(CommandHandler("chart", show_graph))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
 
-    print("✅ Bot is running...")
-    app.run_polling()
+    await app.start()
+    await app.updater.start_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        url_path="",
+        webhook_url=WEBHOOK_URL,
+    )
+    print(f"✅ Бот запущен на Webhook: {WEBHOOK_URL}")
+    await app.updater.idle()
 
 if __name__ == "__main__":
-    main()
+    import asyncio
+    asyncio.run(main())
